@@ -286,12 +286,10 @@
               Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
               Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
             };
-            // Normalize the abbreviation (e.g., "feb" -> "Feb").
             let monthKey = monthAbbr.charAt(0).toUpperCase() + monthAbbr.slice(1).toLowerCase();
             let monthIndex = monthAbbrIndex[monthKey];
             if (monthIndex === undefined) { monthIndex = 0; }
 
-            // Parse time (e.g., "11:29 pm")
             let timeMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(am|pm)/i);
             let hour = 0, minute = 0;
             if (timeMatch) {
@@ -316,10 +314,8 @@
             let timeStr = match[3].trim();
             let sender = match[4];
             let content = match[5];
-            // Use a default year (if not set, use current year)
             let year = window.defaultYear || new Date().getFullYear();
             if (!window.defaultYear) { window.defaultYear = year; }
-            // Parse 24-hour time.
             let [hour, minute] = timeStr.split(':').map(Number);
             const dateObject = new Date(year, month - 1, day, hour, minute);
             const formattedDate = `${monthNames[month - 1]} ${day}, ${year}`;
@@ -328,11 +324,9 @@
           }
         },
         {
-          // Original WhatsApp export format:
-          // 12/31/20, 11:59 PM - John Doe: Message...
+          // Format: 12/31/20, 11:59 PM - John Doe: Message...
           regex: /^(\d{1,2})\/(\d{1,2})\/(\d{2}), (\d{1,2}:\d{2}\s?[APap][Mm]) - ([^:]+): (.+)/,
           parser: function(match) {
-            // Note: In this format, the order is MM/DD/YY.
             let month = parseInt(match[1], 10);
             let day = parseInt(match[2], 10);
             let year = parseInt(match[3], 10);
@@ -341,7 +335,6 @@
             let sender = match[5];
             let content = match[6];
 
-            // Parse time (e.g., "11:59 PM")
             let timeMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(am|pm)/i);
             let hour = 0, minute = 0;
             if (timeMatch) {
@@ -366,14 +359,12 @@
           const pattern = patterns[i];
           const match = line.match(pattern.regex);
           if (match) {
-            // If a previous message exists, push it.
             if (currentMessage) { messages.push(currentMessage); }
             currentMessage = pattern.parser(match);
             matched = true;
             break;
           }
         }
-        // If the line does not match any pattern, it’s a continuation of the previous message.
         if (!matched && currentMessage) {
           currentMessage.content += "\n" + line;
         }
@@ -381,7 +372,13 @@
       if (currentMessage) { messages.push(currentMessage); }
       
       allMessages = messages;  // Store globally
-
+      
+      // If no messages were parsed, alert the user.
+      if (messages.length === 0) {
+        alert("Apologies! The data you've entered is in incorrect format. Thus, the chat could not be parsed. Please provide us the data with the correct formatting. Please refer to the documentation for more info!");
+        return;
+      }
+      
       // Update sender filter dropdown.
       updateSenderFilterOptions();
 
@@ -391,14 +388,13 @@
       // Reveal the filter section.
       document.getElementById('filterSection').style.display = 'block';
 
-      // Apply filters (default: no filters = show all)
+      // Apply filters (default: show all).
       applyFilters();
 
       // Show the "New Transcript" button.
       document.getElementById('newTranscriptBtn').style.display = 'inline-block';
     }
 
-    // Update dynamic title for chat transcript.
     function updateDynamicTitles() {
       const participants = Array.from(new Set(allMessages.map(msg => msg.sender)));
       let chatHistoryTitle = "";
@@ -414,7 +410,6 @@
       document.getElementById('chatHistoryTitle').textContent = chatHistoryTitle;
     }
 
-    // Populate sender filter dropdown.
     function updateSenderFilterOptions() {
       const senderFilterEl = document.getElementById('senderFilter');
       senderFilterEl.innerHTML = '<option value="">All</option>';
@@ -428,7 +423,6 @@
       });
     }
 
-    // Filter messages based on sender and date range.
     function applyFilters() {
       const senderFilter = document.getElementById('senderFilter').value;
       const startDateValue = document.getElementById('startDate').value;
@@ -448,7 +442,6 @@
         filteredMessages = filteredMessages.filter(msg => msg.dateObject <= endDate);
       }
       
-      // Show or hide the clear (X) button.
       if (senderFilter || startDateValue || endDateValue) {
         document.querySelector('.clear-filters-btn').style.display = 'inline-block';
       } else {
@@ -458,7 +451,6 @@
       displayMessages(filteredMessages);
     }
 
-    // Clear filters.
     function clearFilters() {
       document.getElementById('senderFilter').value = "";
       document.getElementById('startDate').value = "";
@@ -466,7 +458,6 @@
       applyFilters();
     }
 
-    // Render messages, update stats and chart.
     function displayMessages(messages) {
       const chatContainer = document.getElementById('chatContainer');
       chatContainer.innerHTML = messages.map(msg => `
@@ -483,7 +474,6 @@
         hljs.highlightElement(block);
       });
 
-      // Compute statistics.
       const totalMessages = messages.length;
       const senderCounts = {};
       const monthCounts = {};
@@ -503,7 +493,6 @@
       senderStatsHtml += '</ul>';
       document.getElementById('senderStats').innerHTML = senderStatsHtml;
 
-      // Chat duration and streak statistics.
       if (messages.length > 0) {
         const uniqueDates = Array.from(new Set(messages.map(msg => msg.dateObject.toISOString().slice(0, 10))));
         uniqueDates.sort();
@@ -547,7 +536,6 @@
         document.getElementById('durationStats').innerHTML = '';
       }
 
-      // Prepare chart data.
       const monthLabels = Object.keys(monthCounts);
       monthLabels.sort((a, b) => new Date('1 ' + a) - new Date('1 ' + b));
       const monthData = monthLabels.map(label => monthCounts[label]);
@@ -579,7 +567,6 @@
       document.getElementById('statsContainer').style.display = 'block';
     }
 
-    // Clear for a new transcript.
     function newTranscript() {
       document.getElementById('transcriptInput').value = "";
       document.getElementById('fileInput').value = "";
@@ -591,7 +578,6 @@
       allMessages = [];
     }
 
-    // File upload handling.
     document.getElementById('fileInput').addEventListener('change', function(e) {
       const file = e.target.files[0];
       if (!file) return;
