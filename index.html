@@ -2,13 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Browser-Based WhatsApp Chat Transcript (.txt) to PDF Converter</title>
+  <title>Browser-Based WhatsApp Chat Transcript (.zip or .txt) to PDF Converter</title>
   <!-- Marked and Highlight.js -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.5.0/styles/default.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.5.0/highlight.min.js"></script>
   <!-- Chart.js for graphs -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <!-- JSZip for extracting ZIP files -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
   <style>
     body {
       font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
@@ -171,10 +173,11 @@
     <div id="controls">
       <!-- Input Section -->
       <div class="input-section">
-        <h2>Browser-Based WhatsApp Chat Transcript (.txt) to PDF Converter</h2>
+        <h2>Browser-Based WhatsApp Chat Transcript (.zip or .txt) to PDF Converter</h2>
         <textarea id="transcriptInput" placeholder="Paste your WhatsApp transcript here..."></textarea>
         <br>
-        <input type="file" id="fileInput" accept=".txt">
+        <!-- Accept both .txt and .zip files -->
+        <input type="file" id="fileInput" accept=".txt, .zip">
         <br><br>
         <!-- Button group -->
         <button onclick="processTranscript()">Render Transcript</button>
@@ -531,12 +534,45 @@
     // File upload handling.
     document.getElementById('fileInput').addEventListener('change', function(e) {
       const file = e.target.files[0];
-      const reader = new FileReader();
-      reader.onload = function(e) {
-        document.getElementById('transcriptInput').value = e.target.result;
-        processTranscript();
-      };
-      reader.readAsText(file);
+      if (!file) return;
+      
+      // Check the file extension to determine whether it's a .zip file.
+      if (file.name.toLowerCase().endsWith('.zip')) {
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          // Load the ZIP file using JSZip.
+          JSZip.loadAsync(e.target.result).then(function(zip) {
+            // Look for the first .txt file in the ZIP.
+            let txtFile;
+            for (let filename in zip.files) {
+              if (filename.toLowerCase().endsWith('.txt')) {
+                txtFile = zip.files[filename];
+                break;
+              }
+            }
+            if (txtFile) {
+              txtFile.async("text").then(function(text) {
+                document.getElementById('transcriptInput').value = text;
+                processTranscript();
+              });
+            } else {
+              alert("No .txt file found in the ZIP archive.");
+            }
+          }).catch(function(err) {
+            console.error("Error reading ZIP file:", err);
+            alert("Failed to read the ZIP file.");
+          });
+        };
+        reader.readAsArrayBuffer(file);
+      } else {
+        // Process as a plain text file.
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          document.getElementById('transcriptInput').value = e.target.result;
+          processTranscript();
+        };
+        reader.readAsText(file);
+      }
     });
   </script>
 </body>
