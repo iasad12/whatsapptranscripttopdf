@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>WhatsApp Transcript Converter</title>
+  <!-- Marked and Highlight.js -->
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.5.0/styles/default.min.css">
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.5.0/highlight.min.js"></script>
+  <!-- Chart.js for graphs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background-color: #f9f9f9;
+      margin: 20px;
+      color: #333;
+    }
+    h2, h3 {
+      margin-top: 0;
+    }
+    .container {
+      max-width: 900px;
+      margin: 0 auto;
+    }
+    .input-section,
+    .filter-section,
+    .stats-section,
+    #chatContainer {
+      background-color: #fff;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.05);
+    }
+    .input-section textarea {
+      width: 100%;
+      height: 200px;
+      padding: 10px;
+      font-family: inherit;
+      font-size: 14px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      resize: vertical;
+    }
+    .input-section input[type="file"] {
+      margin-bottom: 10px;
+    }
+    .input-section button {
+      padding: 10px 15px;
+      margin-right: 10px;
+      border: none;
+      border-radius: 4px;
+      background-color: #007bff;
+      color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .input-section button:hover {
+      background-color: #0056b3;
+    }
+    .filter-section label {
+      margin-right: 10px;
+    }
+    .filter-section select,
+    .filter-section input {
+      margin-right: 10px;
+      padding: 4px 6px;
+      font-size: 14px;
+    }
+    .filter-section button {
+      padding: 8px 12px;
+      border: none;
+      border-radius: 4px;
+      background-color: #28a745;
+      color: #fff;
+      font-size: 14px;
+      cursor: pointer;
+    }
+    .filter-section button:hover {
+      background-color: #1e7e34;
+    }
+    .message {
+      margin-bottom: 15px;
+      border-left: 3px solid #ddd;
+      padding-left: 10px;
+    }
+    .header {
+      margin-bottom: 5px;
+    }
+    .sender {
+      font-weight: bold;
+      color: #007bff;
+    }
+    .time {
+      font-size: 0.85em;
+      color: #666;
+      margin-left: 10px;
+    }
+    .content {
+      color: #000;
+      margin-top: 5px;
+    }
+    .content p {
+      margin: 5px 0;
+    }
+    .content pre {
+      white-space: pre-wrap;
+      background-color: #f5f5f5;
+      padding: 10px;
+      border-radius: 5px;
+      overflow-x: auto;
+    }
+    .content code {
+      font-family: monospace;
+      background-color: #f5f5f5;
+      padding: 2px 4px;
+      border-radius: 3px;
+    }
+    /* Chart canvas styling */
+    #messagesChart {
+      max-width: 100%;
+      height: auto;
+      margin-top: 20px;
+    }
+    /* Hide only the controls when printing */
+    @media print {
+      #controls {
+        display: none;
+      }
+      #chatContainer {
+        max-width: none;
+        box-shadow: none;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <!-- Controls Section (Not printed) -->
+    <div id="controls">
+      <!-- Input Section -->
+      <div class="input-section">
+        <h2>WhatsApp Transcript Converter</h2>
+        <textarea id="transcriptInput" placeholder="Paste your WhatsApp transcript here..."></textarea>
+        <br>
+        <input type="file" id="fileInput" accept=".txt">
+        <br><br>
+        <button onclick="processTranscript()">Convert to Chat</button>
+        <button onclick="window.print()">Print</button>
+      </div>
+
+      <!-- Filter Section (hidden until transcript is loaded) -->
+      <div class="filter-section" id="filterSection" style="display: none;">
+        <h3>Filter Messages</h3>
+        <label for="senderFilter">Sender:</label>
+        <select id="senderFilter">
+          <option value="">All</option>
+        </select>
+        <label for="startDate">Start Date:</label>
+        <input type="date" id="startDate">
+        <label for="endDate">End Date:</label>
+        <input type="date" id="endDate">
+        <button onclick="applyFilters()">Apply Filters</button>
+      </div>
+    </div>
+
+    <!-- Statistics Section (printed with transcript) -->
+    <div class="stats-section" id="statsContainer" style="display: none;">
+      <h2>Chat Statistics</h2>
+      <p id="totalMessages"></p>
+      <div id="senderStats"></div>
+      <canvas id="messagesChart"></canvas>
+    </div>
+
+    <!-- Chat Transcript Section (Printed) -->
+    <div id="chatTranscript">
+      <!-- Chat Container -->
+      <div id="chatContainer"></div>
+    </div>
+  </div>
+
+  <script>
+    const monthNames = ["January", "February", "March", "April", "May", "June",
+                        "July", "August", "September", "October", "November", "December"];
+    let allMessages = [];  // Global array to store all parsed messages
+    let messagesChartInstance = null; // For Chart.js instance
+
+    function formatDate(dateString) {
+      const [month, day, year] = dateString.split('/');
+      const fullYear = parseInt(year) < 100 ? `20${year}` : year;
+      return `${monthNames[parseInt(month)-1]} ${parseInt(day)}, ${fullYear}`;
+    }
+
+    marked.setOptions({
+      breaks: true,
+      highlight: function(code) {
+        return hljs.highlightAuto(code).value;
+      }
+    });
+
+    function escapeHtml(unsafe) {
+      return unsafe
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#039;");
+    }
+
+    function parseMessageContent(content) {
+      const escapedContent = escapeHtml(content);
+      const withNewlines = escapedContent.replace(/\n/g, '\n\n');
+      return marked.parse(withNewlines);
+    }
+
+    // Parse the transcript and update global "allMessages"
+    function processTranscript() {
+      const transcript = document.getElementById('transcriptInput').value;
+      const messages = [];
+      let currentMessage = null;
+
+      transcript.split('\n').forEach(line => {
+        // Example pattern: "12/31/20, 11:59 PM - John Doe: Happy New Year!"
+        const match = line.match(/^(\d{1,2}\/\d{1,2}\/\d{2}), (\d{1,2}:\d{2}\s?[AP]M) - (.+?): (.+)/);
+        if (match) {
+          if (currentMessage) messages.push(currentMessage);
+          const [month, day, year] = match[1].split('/');
+          const fullYear = parseInt(year) < 100 ? `20${year}` : year;
+          // Create a month-year key (e.g., "January 2020") for graph stats.
+          const monthYear = monthNames[parseInt(month)-1] + " " + fullYear;
+          // Create a Date object for filtering (months are 0-indexed)
+          const dateObj = new Date(parseInt(fullYear), parseInt(month)-1, parseInt(day));
+          currentMessage = {
+            date: formatDate(match[1]),
+            time: match[2],
+            sender: match[3],
+            content: match[4],
+            monthYear: monthYear,
+            dateObject: dateObj
+          };
+        } else if (currentMessage) {
+          currentMessage.content += '\n' + line;
+        }
+      });
+      if (currentMessage) messages.push(currentMessage);
+      
+      allMessages = messages;  // Store globally
+
+      // Update sender filter dropdown with unique senders.
+      updateSenderFilterOptions();
+
+      // Reveal the filter section.
+      document.getElementById('filterSection').style.display = 'block';
+
+      // Apply filters (by default, no filters = show all)
+      applyFilters();
+    }
+
+    // Populate sender filter dropdown with unique sender names.
+    function updateSenderFilterOptions() {
+      const senderFilterEl = document.getElementById('senderFilter');
+      senderFilterEl.innerHTML = '<option value="">All</option>';
+      const senders = new Set();
+      allMessages.forEach(msg => senders.add(msg.sender));
+      Array.from(senders).sort().forEach(sender => {
+        const option = document.createElement('option');
+        option.value = sender;
+        option.textContent = sender;
+        senderFilterEl.appendChild(option);
+      });
+    }
+
+    // Filter messages based on sender and date range.
+    function applyFilters() {
+      const senderFilter = document.getElementById('senderFilter').value;
+      const startDateValue = document.getElementById('startDate').value;
+      const endDateValue = document.getElementById('endDate').value;
+      let filteredMessages = allMessages;
+
+      if (senderFilter) {
+        filteredMessages = filteredMessages.filter(msg => msg.sender === senderFilter);
+      }
+      if (startDateValue) {
+        const startDate = new Date(startDateValue);
+        filteredMessages = filteredMessages.filter(msg => msg.dateObject >= startDate);
+      }
+      if (endDateValue) {
+        const endDate = new Date(endDateValue);
+        // Include the entire end date by setting time to end of day.
+        endDate.setHours(23, 59, 59, 999);
+        filteredMessages = filteredMessages.filter(msg => msg.dateObject <= endDate);
+      }
+      displayMessages(filteredMessages);
+    }
+
+    // Render the messages, update statistics and chart.
+    function displayMessages(messages) {
+      // Render chat messages.
+      const chatContainer = document.getElementById('chatContainer');
+      chatContainer.innerHTML = messages.map(msg => `
+        <div class="message">
+          <div class="header">
+            <span class="sender">${msg.sender}</span>
+            <span class="time">${msg.date} at ${msg.time}</span>
+          </div>
+          <div class="content">${parseMessageContent(msg.content)}</div>
+        </div>
+      `).join('');
+
+      document.querySelectorAll('pre code').forEach((block) => {
+        hljs.highlightElement(block);
+      });
+
+      // Compute statistics.
+      const totalMessages = messages.length;
+      const senderCounts = {};
+      const monthCounts = {};
+
+      messages.forEach(msg => {
+        // Count messages per sender.
+        senderCounts[msg.sender] = (senderCounts[msg.sender] || 0) + 1;
+        // Count messages per month.
+        if (msg.monthYear) {
+          monthCounts[msg.monthYear] = (monthCounts[msg.monthYear] || 0) + 1;
+        }
+      });
+
+      // Display statistics.
+      document.getElementById('totalMessages').textContent = `Total Messages: ${totalMessages}`;
+      let senderStatsHtml = '<ul>';
+      for (const sender in senderCounts) {
+        senderStatsHtml += `<li><strong>${sender}</strong>: ${senderCounts[sender]} message${senderCounts[sender] > 1 ? 's' : ''}</li>`;
+      }
+      senderStatsHtml += '</ul>';
+      document.getElementById('senderStats').innerHTML = senderStatsHtml;
+
+      // Prepare data for the chart.
+      const monthLabels = Object.keys(monthCounts);
+      // Sort the month labels by converting them into Date objects.
+      monthLabels.sort((a, b) => new Date('1 ' + a) - new Date('1 ' + b));
+      const monthData = monthLabels.map(label => monthCounts[label]);
+
+      // Create (or update) the chart.
+      const ctx = document.getElementById('messagesChart').getContext('2d');
+      if (messagesChartInstance) {
+        messagesChartInstance.destroy();
+      }
+      messagesChartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels: monthLabels,
+          datasets: [{
+            label: 'Messages per Month',
+            data: monthData,
+            backgroundColor: 'rgba(54, 162, 235, 0.5)',
+            borderColor: 'rgba(54, 162, 235, 1)',
+            borderWidth: 1
+          }]
+        },
+        options: {
+          scales: {
+            y: {
+              beginAtZero: true,
+              ticks: {
+                precision: 0
+              }
+            }
+          }
+        }
+      });
+
+      // Unhide the stats section.
+      document.getElementById('statsContainer').style.display = 'block';
+    }
+
+    // File upload handling.
+    document.getElementById('fileInput').addEventListener('change', function(e) {
+      const file = e.target.files[0];
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        document.getElementById('transcriptInput').value = e.target.result;
+        processTranscript();
+      };
+      reader.readAsText(file);
+    });
+  </script>
+</body>
+</html>
