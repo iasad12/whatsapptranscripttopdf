@@ -37,7 +37,7 @@ A simple, client-side tool that converts your WhatsApp chat transcripts into a p
    - **Upload:** Alternatively, click on the file input button to select a `.txt` file containing your chat transcript.
 
 3. **Convert the Transcript:**
-   - Click on the **"Convert to Chat"** button.
+   - Click on the **"Render Transcript"** button.
    - The tool will parse the transcript and render the messages in a styled chat view.
 
 4. **Filter Messages (Optional):**
