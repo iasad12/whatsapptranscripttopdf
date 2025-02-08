@@ -30,7 +30,7 @@ A simple, client-side tool that converts your WhatsApp chat transcripts into a p
 ## How to Use
 
 1. **Open the Converter:**
-   - Simply open the `WhatsApp Chat to PDF Converter.html` file in your favorite browser.
+   - Head to [this link](https://iasad12.github.io/whatsapptranscripttopdf/) to open the converter in any prowser of your choice. 
 
 2. **Input Your Transcript:**
    - **Paste:** Copy your WhatsApp transcript and paste it into the provided text area.
