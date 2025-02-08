@@ -1,4 +1,4 @@
-# Browser-Based WhatsApp Chat Transcripts (.txt) to PDF Converter
+# Browser-Based WhatsApp Chat Transcripts (.zip or .txt) to PDF Converter
 
 A simple, client-side tool that converts your WhatsApp chat transcripts into a printable (and PDF-friendly) format. This converter not only renders your chats in a clean, easy-to-read layout but also provides filtering options and interesting statistics.
 
@@ -34,7 +34,7 @@ A simple, client-side tool that converts your WhatsApp chat transcripts into a p
 
 2. **Input Your Transcript:**
    - **Paste:** Copy your WhatsApp transcript and paste it into the provided text area.
-   - **Upload:** Alternatively, click on the file input button to select a `.txt` file containing your chat transcript.
+   - **Upload:** Alternatively, click on the file input button to select a `.zip` or `.txt` file containing your chat transcript.
 
 3. **Convert the Transcript:**
    - Click on the **"Render Transcript"** button.
