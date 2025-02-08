@@ -68,4 +68,17 @@ This project leverages several popular libraries hosted via CDNs:
   All processing occurs in your browser. No data is sent to any server, ensuring your chat history remains private.
 
 - **Transcript Format:**  
-  The parser expects a format similar to:  
+  The parser expects a format similar to:
+
+  12/31/20, 11:59 PM - John Doe: Happy New Year!
+
+  Additional lines that do not match the initial pattern are appended to the previous message.
+
+## License
+
+This project is open source and available under the [MIT License](LICENSE).
+
+## Acknowledgments
+
+- Thanks to the developers of [Marked](https://github.com/markedjs/marked), [Highlight.js](https://highlightjs.org/), and [Chart.js](https://www.chartjs.org/) for providing these fantastic libraries. This project was entirely created with [DeepSeekR1](https://github.com/deepseek-ai/DeepSeek-R1) and o3-mini. 
+
