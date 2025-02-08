@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <title>Browser-Based WhatsApp Chat Transcript (.zip or .txt) to PDF Converter</title>
+  <title>Browser-Based WhatsApp Chat Transcript (.txt) to PDF Converter</title>
   <!-- Marked and Highlight.js -->
   <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.5.0/styles/default.min.css">
@@ -173,7 +173,7 @@
     <div id="controls">
       <!-- Input Section -->
       <div class="input-section">
-        <h2>Browser-Based WhatsApp Chat Transcript (.zip or .txt) to PDF Converter</h2>
+        <h2>Browser-Based WhatsApp Chat Transcript (.txt) to PDF Converter</h2>
         <textarea id="transcriptInput" placeholder="Paste your WhatsApp transcript here..."></textarea>
         <br>
         <!-- Accept both .txt and .zip files -->
@@ -232,16 +232,13 @@
   </footer>
 
   <script>
+    // Global month names array.
     const monthNames = ["January", "February", "March", "April", "May", "June",
                         "July", "August", "September", "October", "November", "December"];
     let allMessages = [];  // Global array to store all parsed messages
     let messagesChartInstance = null; // For Chart.js instance
-
-    function formatDate(dateString) {
-      const [month, day, year] = dateString.split('/');
-      const fullYear = parseInt(year) < 100 ? `20${year}` : year;
-      return `${monthNames[parseInt(month)-1]} ${parseInt(day)}, ${fullYear}`;
-    }
+    // For formats that do not specify a year, we use a default year.
+    window.defaultYear = null; 
 
     marked.setOptions({
       breaks: true,
@@ -265,58 +262,144 @@
       return marked.parse(withNewlines);
     }
 
-    // Parse the transcript and update global "allMessages"
+    // Modified transcript parser to support multiple date/time formats.
     function processTranscript() {
       const transcript = document.getElementById('transcriptInput').value;
       const messages = [];
       let currentMessage = null;
 
+      // Define patterns and corresponding parser functions.
+      const patterns = [
+        {
+          // Format: [05-Feb-2025 11:29 pm] Asad Imran: Message...
+          regex: /^\[(\d{1,2})-([A-Za-z]{3})-(\d{4}) (\d{1,2}:\d{2}\s?(?:am|pm))\] ([^:]+): (.+)/i,
+          parser: function(match) {
+            let day = parseInt(match[1], 10);
+            let monthAbbr = match[2];
+            let year = parseInt(match[3], 10);
+            let timeStr = match[4].trim();
+            let sender = match[5];
+            let content = match[6];
+
+            // Mapping for month abbreviations.
+            const monthAbbrIndex = {
+              Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+              Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11
+            };
+            // Normalize the abbreviation (e.g., "feb" -> "Feb").
+            let monthKey = monthAbbr.charAt(0).toUpperCase() + monthAbbr.slice(1).toLowerCase();
+            let monthIndex = monthAbbrIndex[monthKey];
+            if (monthIndex === undefined) { monthIndex = 0; }
+
+            // Parse time (e.g., "11:29 pm")
+            let timeMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(am|pm)/i);
+            let hour = 0, minute = 0;
+            if (timeMatch) {
+              hour = parseInt(timeMatch[1], 10);
+              minute = parseInt(timeMatch[2], 10);
+              let meridiem = timeMatch[3].toLowerCase();
+              if (meridiem === 'pm' && hour !== 12) hour += 12;
+              if (meridiem === 'am' && hour === 12) hour = 0;
+            }
+            const dateObject = new Date(year, monthIndex, day, hour, minute);
+            const formattedDate = `${monthNames[monthIndex]} ${day}, ${year}`;
+            const monthYear = `${monthNames[monthIndex]} ${year}`;
+            return { date: formattedDate, time: timeStr, sender, content, dateObject, monthYear };
+          }
+        },
+        {
+          // Format: [06/02, 20:39] Asad Imran: Message...
+          regex: /^\[(\d{1,2})\/(\d{1,2}), (\d{2}:\d{2})\] ([^:]+): (.+)/,
+          parser: function(match) {
+            let day = parseInt(match[1], 10);
+            let month = parseInt(match[2], 10);
+            let timeStr = match[3].trim();
+            let sender = match[4];
+            let content = match[5];
+            // Use a default year (if not set, use current year)
+            let year = window.defaultYear || new Date().getFullYear();
+            if (!window.defaultYear) { window.defaultYear = year; }
+            // Parse 24-hour time.
+            let [hour, minute] = timeStr.split(':').map(Number);
+            const dateObject = new Date(year, month - 1, day, hour, minute);
+            const formattedDate = `${monthNames[month - 1]} ${day}, ${year}`;
+            const monthYear = `${monthNames[month - 1]} ${year}`;
+            return { date: formattedDate, time: timeStr, sender, content, dateObject, monthYear };
+          }
+        },
+        {
+          // Original WhatsApp export format:
+          // 12/31/20, 11:59 PM - John Doe: Message...
+          regex: /^(\d{1,2})\/(\d{1,2})\/(\d{2}), (\d{1,2}:\d{2}\s?[APap][Mm]) - ([^:]+): (.+)/,
+          parser: function(match) {
+            // Note: In this format, the order is MM/DD/YY.
+            let month = parseInt(match[1], 10);
+            let day = parseInt(match[2], 10);
+            let year = parseInt(match[3], 10);
+            if (year < 100) { year += 2000; }
+            let timeStr = match[4].trim();
+            let sender = match[5];
+            let content = match[6];
+
+            // Parse time (e.g., "11:59 PM")
+            let timeMatch = timeStr.match(/(\d{1,2}):(\d{2})\s*(am|pm)/i);
+            let hour = 0, minute = 0;
+            if (timeMatch) {
+              hour = parseInt(timeMatch[1], 10);
+              minute = parseInt(timeMatch[2], 10);
+              let meridiem = timeMatch[3].toLowerCase();
+              if (meridiem === 'pm' && hour !== 12) hour += 12;
+              if (meridiem === 'am' && hour === 12) hour = 0;
+            }
+            const dateObject = new Date(year, month - 1, day, hour, minute);
+            const formattedDate = `${monthNames[month - 1]} ${day}, ${year}`;
+            const monthYear = `${monthNames[month - 1]} ${year}`;
+            return { date: formattedDate, time: timeStr, sender, content, dateObject, monthYear };
+          }
+        }
+      ];
+
+      // Process transcript line by line.
       transcript.split('\n').forEach(line => {
-        // Example pattern: "12/31/20, 11:59 PM - John Doe: Happy New Year!"
-        const match = line.match(/^(\d{1,2}\/\d{1,2}\/\d{2}), (\d{1,2}:\d{2}\s?[AP]M) - (.+?): (.+)/);
-        if (match) {
-          if (currentMessage) messages.push(currentMessage);
-          const [month, day, year] = match[1].split('/');
-          const fullYear = parseInt(year) < 100 ? `20${year}` : year;
-          // Create a month-year key (e.g., "January 2020") for graph stats.
-          const monthYear = monthNames[parseInt(month)-1] + " " + fullYear;
-          // Create a Date object for filtering (months are 0-indexed)
-          const dateObj = new Date(parseInt(fullYear), parseInt(month)-1, parseInt(day));
-          currentMessage = {
-            date: formatDate(match[1]),
-            time: match[2],
-            sender: match[3],
-            content: match[4],
-            monthYear: monthYear,
-            dateObject: dateObj
-          };
-        } else if (currentMessage) {
-          currentMessage.content += '\n' + line;
+        let matched = false;
+        for (let i = 0; i < patterns.length; i++) {
+          const pattern = patterns[i];
+          const match = line.match(pattern.regex);
+          if (match) {
+            // If a previous message exists, push it.
+            if (currentMessage) { messages.push(currentMessage); }
+            currentMessage = pattern.parser(match);
+            matched = true;
+            break;
+          }
+        }
+        // If the line does not match any pattern, it’s a continuation of the previous message.
+        if (!matched && currentMessage) {
+          currentMessage.content += "\n" + line;
         }
       });
-      if (currentMessage) messages.push(currentMessage);
+      if (currentMessage) { messages.push(currentMessage); }
       
       allMessages = messages;  // Store globally
 
-      // Update the sender filter dropdown with unique senders.
+      // Update sender filter dropdown.
       updateSenderFilterOptions();
 
-      // Update dynamic title for chat transcript.
+      // Update the dynamic chat transcript title.
       updateDynamicTitles();
 
       // Reveal the filter section.
       document.getElementById('filterSection').style.display = 'block';
 
-      // Apply filters (by default, no filters = show all)
+      // Apply filters (default: no filters = show all)
       applyFilters();
 
-      // Show the "New Transcript" button after a transcript is rendered.
+      // Show the "New Transcript" button.
       document.getElementById('newTranscriptBtn').style.display = 'inline-block';
     }
 
-    // Update the dynamic title for chat transcript.
+    // Update dynamic title for chat transcript.
     function updateDynamicTitles() {
-      // Use all messages (not the filtered ones) to gather participants.
       const participants = Array.from(new Set(allMessages.map(msg => msg.sender)));
       let chatHistoryTitle = "";
       if (participants.length === 2) {
@@ -328,11 +411,10 @@
       } else {
         chatHistoryTitle = "Chat History";
       }
-      // Update the dynamic chat transcript title.
       document.getElementById('chatHistoryTitle').textContent = chatHistoryTitle;
     }
 
-    // Populate sender filter dropdown with unique sender names.
+    // Populate sender filter dropdown.
     function updateSenderFilterOptions() {
       const senderFilterEl = document.getElementById('senderFilter');
       senderFilterEl.innerHTML = '<option value="">All</option>';
@@ -362,12 +444,11 @@
       }
       if (endDateValue) {
         const endDate = new Date(endDateValue);
-        // Include the entire end date by setting time to end of day.
         endDate.setHours(23, 59, 59, 999);
         filteredMessages = filteredMessages.filter(msg => msg.dateObject <= endDate);
       }
       
-      // Show or hide the clear (X) button based on whether any filter is applied.
+      // Show or hide the clear (X) button.
       if (senderFilter || startDateValue || endDateValue) {
         document.querySelector('.clear-filters-btn').style.display = 'inline-block';
       } else {
@@ -377,7 +458,7 @@
       displayMessages(filteredMessages);
     }
 
-    // Clear filters and reapply (show all messages)
+    // Clear filters.
     function clearFilters() {
       document.getElementById('senderFilter').value = "";
       document.getElementById('startDate').value = "";
@@ -385,9 +466,8 @@
       applyFilters();
     }
 
-    // Render the messages, update statistics and chart.
+    // Render messages, update stats and chart.
     function displayMessages(messages) {
-      // Render chat messages.
       const chatContainer = document.getElementById('chatContainer');
       chatContainer.innerHTML = messages.map(msg => `
         <div class="message">
@@ -409,15 +489,12 @@
       const monthCounts = {};
 
       messages.forEach(msg => {
-        // Count messages per sender.
         senderCounts[msg.sender] = (senderCounts[msg.sender] || 0) + 1;
-        // Count messages per month.
         if (msg.monthYear) {
           monthCounts[msg.monthYear] = (monthCounts[msg.monthYear] || 0) + 1;
         }
       });
 
-      // Display basic statistics.
       document.getElementById('totalMessages').textContent = `Total Messages: ${totalMessages}`;
       let senderStatsHtml = '<ul>';
       for (const sender in senderCounts) {
@@ -426,20 +503,16 @@
       senderStatsHtml += '</ul>';
       document.getElementById('senderStats').innerHTML = senderStatsHtml;
 
-      // Compute and display chat duration and continuous streak statistics.
+      // Chat duration and streak statistics.
       if (messages.length > 0) {
-        // Extract unique dates (in YYYY-MM-DD format) from message date objects.
         const uniqueDates = Array.from(new Set(messages.map(msg => msg.dateObject.toISOString().slice(0, 10))));
-        uniqueDates.sort(); // ISO date strings sort correctly
-
+        uniqueDates.sort();
         const chatStartISO = uniqueDates[0];
         const chatEndISO = uniqueDates[uniqueDates.length - 1];
         const startDateObj = new Date(chatStartISO);
         const endDateObj = new Date(chatEndISO);
-        // Overall duration (inclusive)
         const overallDurationDays = Math.floor((endDateObj - startDateObj) / (1000 * 60 * 60 * 24)) + 1;
 
-        // Calculate longest consecutive chat streak.
         let longestStreak = 0;
         let currentStreak = 0;
         let previousDate = null;
@@ -459,7 +532,6 @@
           previousDate = currentDate;
         });
 
-        // Format dates in a friendly format.
         function formatDateCustom(dateObj) {
           return monthNames[dateObj.getMonth()] + ' ' + dateObj.getDate() + ', ' + dateObj.getFullYear();
         }
@@ -475,17 +547,13 @@
         document.getElementById('durationStats').innerHTML = '';
       }
 
-      // Prepare data for the chart.
+      // Prepare chart data.
       const monthLabels = Object.keys(monthCounts);
-      // Sort the month labels by converting them into Date objects.
       monthLabels.sort((a, b) => new Date('1 ' + a) - new Date('1 ' + b));
       const monthData = monthLabels.map(label => monthCounts[label]);
 
-      // Create (or update) the chart.
       const ctx = document.getElementById('messagesChart').getContext('2d');
-      if (messagesChartInstance) {
-        messagesChartInstance.destroy();
-      }
+      if (messagesChartInstance) { messagesChartInstance.destroy(); }
       messagesChartInstance = new Chart(ctx, {
         type: 'bar',
         data: {
@@ -502,32 +570,24 @@
           scales: {
             y: {
               beginAtZero: true,
-              ticks: {
-                precision: 0
-              }
+              ticks: { precision: 0 }
             }
           }
         }
       });
 
-      // Unhide the stats section.
       document.getElementById('statsContainer').style.display = 'block';
     }
 
-    // Clear the screen for a new transcript.
+    // Clear for a new transcript.
     function newTranscript() {
-      // Clear the transcript input field and file input.
       document.getElementById('transcriptInput').value = "";
       document.getElementById('fileInput').value = "";
-      // Clear chat history and statistics.
       document.getElementById('chatContainer').innerHTML = "";
       document.getElementById('statsContainer').style.display = "none";
       document.getElementById('filterSection').style.display = "none";
-      // Hide the New Transcript button.
       document.getElementById('newTranscriptBtn').style.display = "none";
-      // Clear the dynamic chat history title.
       document.getElementById('chatHistoryTitle').textContent = "";
-      // Clear stored messages.
       allMessages = [];
     }
 
@@ -536,13 +596,10 @@
       const file = e.target.files[0];
       if (!file) return;
       
-      // Check the file extension to determine whether it's a .zip file.
       if (file.name.toLowerCase().endsWith('.zip')) {
         const reader = new FileReader();
         reader.onload = function(e) {
-          // Load the ZIP file using JSZip.
           JSZip.loadAsync(e.target.result).then(function(zip) {
-            // Look for the first .txt file in the ZIP.
             let txtFile;
             for (let filename in zip.files) {
               if (filename.toLowerCase().endsWith('.txt')) {
@@ -565,7 +622,6 @@
         };
         reader.readAsArrayBuffer(file);
       } else {
-        // Process as a plain text file.
         const reader = new FileReader();
         reader.onload = function(e) {
           document.getElementById('transcriptInput').value = e.target.result;
