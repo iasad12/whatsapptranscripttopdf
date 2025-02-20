@@ -271,6 +271,23 @@
       // Define patterns and corresponding parser functions.
       const patterns = [
         {
+          // New Format: DD/MM/YYYY, HH:MM - Sender: Message...
+          regex: /^(\d{1,2})\/(\d{1,2})\/(\d{4}), (\d{1,2}:\d{2}) - ([^:]+): (.+)/,
+          parser: function(match) {
+            const day = parseInt(match[1], 10);
+            const month = parseInt(match[2], 10);
+            const year = parseInt(match[3], 10);
+            const timeStr = match[4].trim();
+            const sender = match[5];
+            const content = match[6];
+            const [hour, minute] = timeStr.split(':').map(Number);
+            const dateObject = new Date(year, month - 1, day, hour, minute);
+            const formattedDate = `${monthNames[month - 1]} ${day}, ${year}`;
+            const monthYear = `${monthNames[month - 1]} ${year}`;
+            return { date: formattedDate, time: timeStr, sender, content, dateObject, monthYear };
+          }
+        },
+        {
           // Format: [05-Feb-2025 11:29 pm] Asad Imran: Message...
           regex: /^\[(\d{1,2})-([A-Za-z]{3})-(\d{4}) (\d{1,2}:\d{2}\s?(?:am|pm))\] ([^:]+): (.+)/i,
           parser: function(match) {
